@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { readdir, writeFile, readFile, rm, mkdir } = require('fs/promises');
+const { readdir, writeFile, readFile, copyFile, rm, mkdir } = require('fs/promises');
 
 let data = '';
 
@@ -11,9 +11,7 @@ async function createFoldersAndFiles() {
     await rm(path.join(distPath), { force: true, recursive: true });
     await mkdir(path.join(distPath), { recursive: true });
     await mkdir(path.join(distPath, 'assets'), { recursive: true });
-    await writeFile(path.join(distPath, 'style.css'), '', (err) => {
-      if(err) throw err;
-    });
+    await writeFile(path.join(distPath, 'style.css'), '');
  
     createBundle();
     copy(path.join(__dirname, 'assets'), path.join(distPath, 'assets'));
@@ -30,12 +28,15 @@ async function createBundle() {
   try {
     const files = await readdir(path.join(__dirname,'styles'), {withFileTypes: true});
     for (let elem of files) {
-      if (path.extname(path.join(__dirname, 'styles', elem.name))==='.css') {
+      if (path.extname(path.join(__dirname, 'styles', elem.name)) === '.css') {
         const input = fs.createReadStream(path.join(__dirname,'styles', elem.name));
         const output = fs.createWriteStream(path.join(distPath, 'style.css'));
 
         input.on('data', chunk => data += chunk);
-        input.on('end', () => output.write(data));
+        input.on('error', error => console.log(error));
+        input.on('end', function(){
+          output.write(data);
+        });
       }
     }
   
@@ -48,14 +49,12 @@ async function createBundle() {
 async function copy(directory, copyDirectory) {
   try {
     const files = await readdir(path.join(directory), {withFileTypes: true});
-    for (let elem of files) {
-      if (elem.isFile()) {
-        fs.copyFile(path.join(directory,elem.name), path.join(copyDirectory,elem.name), (err) => {
-          if(err) throw err;
-        });
+    for (let item of files) {
+      if (item.isFile()) {
+        copyFile(path.join(directory,item.name), path.join(copyDirectory,item.name));
       } else {
-        await mkdir(path.join(copyDirectory,elem.name), { recursive: true });
-        await copy(path.join(directory,elem.name),path.join(copyDirectory,elem.name));
+        await mkdir(path.join(copyDirectory,item.name), { recursive: true });
+        await copy(path.join(directory,item.name),path.join(copyDirectory,item.name));
       }
     }
   } catch (err) {
@@ -67,18 +66,16 @@ async function readTemplate() {
   try {
     let components = [];
     const files = await readdir(path.join(__dirname, 'components'), {withFileTypes: true});
-    for (let elem of files) {
-      components.push(path.parse(path.join(__dirname, 'components', elem.name)).name);
+    for (let item of files) {
+      components.push(path.parse(path.join(__dirname, 'components', item.name)).name);
     }
 
     let index = await readFile(path.join(__dirname,'template.html'), 'utf-8');
-    for (let elem of components) {
-      let html = await readFile(path.join(__dirname, 'components', `${elem}.html`), 'utf-8');
-      index = index.replace(`{{${elem}}}`, html);
+    for (let item of components) {
+      let html = await readFile(path.join(__dirname, 'components', `${item}.html`), 'utf-8');
+      index = index.replace(`{{${item}}}`, html);
     }
-    await writeFile(path.join(distPath, 'index.html'), index, (err) => {
-      if(err) throw err;
-    });
+    await writeFile(path.join(distPath, 'index.html'), index);
 
   } catch (err) {
     console.log(err);
